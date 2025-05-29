@@ -1,9 +1,11 @@
 using Unity.Netcode;
+using Unity.Netcode.Components;
+using Unity.Services.Matchmaker.Models;
 using UnityEngine;
 
 public class CrossAnimationDirectionRandomiser : NetworkBehaviour
 {
-    [SerializeField] Animator animator;
+    [SerializeField] NetworkAnimator networkAnimator;
 
     private NetworkVariable<int> index = new NetworkVariable<int>();
 
@@ -15,18 +17,21 @@ public class CrossAnimationDirectionRandomiser : NetworkBehaviour
             HungryHippoGameManager.Instance.OnRoundEnded += SetRandomIndex;
     }
 
-    private void OnDestroy()
+    public override void OnDestroy()
     {
-
         if (!IsServer) return;
 
         if (HungryHippoGameManager.Instance)
             HungryHippoGameManager.Instance.OnRoundEnded -= SetRandomIndex;
+
+        base.OnDestroy();
     }
 
 
     public override void OnNetworkSpawn() 
     {
+        base.OnNetworkSpawn();
+
         index.OnValueChanged += OnIndexChanged;
 
         if(!IsServer) return;
@@ -34,19 +39,15 @@ public class CrossAnimationDirectionRandomiser : NetworkBehaviour
         SetRandomIndex();
     }
 
-    private void OnIndexChanged(int oldIndex, int newIndex) 
-    {
+    private void OnIndexChanged(int oldIndex, int newIndex) =>
         UpdateAnimatorIndex();
-    }
 
-    private void SetRandomIndex() 
-    {
+    private void SetRandomIndex() =>
         index.Value = Random.Range(0, 2);
-    }
 
     private void UpdateAnimatorIndex() 
     {
         Debug.Log("Updating animator index");
-        animator.SetInteger("index", index.Value);
+        networkAnimator.Animator.SetInteger("index", index.Value);
     }
 }

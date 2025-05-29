@@ -1,4 +1,6 @@
 using TMPro;
+using Unity.Services.Authentication;
+using Unity.Services.Core;
 using UnityEngine;
 using UnityEngine.UI;
 public class AuthenticateUI : MonoBehaviour {
@@ -15,6 +17,16 @@ public class AuthenticateUI : MonoBehaviour {
         authenticateButton.onClick.AddListener(HandleAuthenticationButtonClicked);
     }
 
+    private void Start()
+    {
+        if (UnityServices.State != ServicesInitializationState.Initialized) return;
+
+        if (AuthenticationService.Instance.IsSignedIn) 
+        {
+            gameObject.SetActive(false);
+        }
+    }
+
     private void HandleAuthenticationButtonClicked() 
     {
         if (string.IsNullOrEmpty(nameInputField.text) ||
@@ -25,8 +37,10 @@ public class AuthenticateUI : MonoBehaviour {
             return;
         }
 
-        LobbyManager.Instance.UpdatePlayerName(nameInputField.text);
-        LobbyManager.Instance.Authenticate(nameInputField.text);
+        string nameCleanup = nameInputField.text.Replace(" ", string.Empty);
+        Debug.Log("Clean up name: " + nameCleanup);
+        LobbyManager.Instance.UpdatePlayerName(nameCleanup);
+        LobbyManager.Instance.Authenticate(nameCleanup);
         lobbyListUI.SetActive(true);
         Hide();
     }

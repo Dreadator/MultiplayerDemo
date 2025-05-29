@@ -95,7 +95,7 @@ public class LobbyCreateUI : Singleton<LobbyCreateUI>
                gameMode
            );
 
-        LobbyListUI.Instance.ShowCreatingLobbyText();
+        LobbyListUI.Instance.CreatingLobbyInitiated();
 
         Hide();
     }
@@ -120,7 +120,8 @@ public class LobbyCreateUI : Singleton<LobbyCreateUI>
         UpdateText();
     }
 
-    private void Hide() => gameObject.SetActive(false);
+    private void Hide() => 
+        gameObject.SetActive(false);
 
     private void DecreaseMaxPlayersCount() 
     {
@@ -129,7 +130,6 @@ public class LobbyCreateUI : Singleton<LobbyCreateUI>
             maxPlayers = 1;
             return; 
         }
-
         --maxPlayers;
         maxPlayersText.text = maxPlayers.ToString();
     }
@@ -141,7 +141,6 @@ public class LobbyCreateUI : Singleton<LobbyCreateUI>
             maxPlayers = RelayManager.MAX_PLAYERS_COUNT;
             return;
         }
-
         ++maxPlayers;
         maxPlayersText.text = maxPlayers.ToString();
     }

@@ -1,14 +1,14 @@
 using System.Collections;
-using System.Collections.Generic;
-using TMPro;
 using Unity.Netcode;
 using Unity.Services.Authentication;
 using Unity.Services.Lobbies.Models;
-using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnityEngine;
+using TMPro;
 
-public class LobbyUI : MonoBehaviour {
+public class LobbyUI : MonoBehaviour
+{
     public static LobbyUI Instance { get; private set; }
 
     [SerializeField] private Transform playerSingleTemplate;
@@ -24,35 +24,42 @@ public class LobbyUI : MonoBehaviour {
 
     private bool gameStarted = false;
 
-    private void Awake() {
+    private void Awake()
+    {
         Instance = this;
 
         playerSingleTemplate.gameObject.SetActive(false);
 
-        changeMarineButton.onClick.AddListener(() => {
+        changeMarineButton.onClick.AddListener(() =>
+        {
             LobbyManager.Instance.UpdatePlayerCharacter(LobbyManager.PlayerCharacter.Snake);
         });
-        changeNinjaButton.onClick.AddListener(() => {
+        changeNinjaButton.onClick.AddListener(() =>
+        {
             LobbyManager.Instance.UpdatePlayerCharacter(LobbyManager.PlayerCharacter.Hippo);
         });
-        changeZombieButton.onClick.AddListener(() => {
+        changeZombieButton.onClick.AddListener(() =>
+        {
             LobbyManager.Instance.UpdatePlayerCharacter(LobbyManager.PlayerCharacter.Crocodile);
         });
 
-        leaveLobbyButton.onClick.AddListener(() => {
+        leaveLobbyButton.onClick.AddListener(() =>
+        {
             LobbyManager.Instance.LeaveLobby();
             LobbyListUI.Instance.ShowCreateAndJoinButtons(true);
         });
 
-        changeGameModeButton.onClick.AddListener(() => {
+        changeGameModeButton.onClick.AddListener(() =>
+        {
             LobbyManager.Instance.ChangeGameMode();
         });
     }
 
-    private void Start() {
+    private void Start()
+    {
 
         if (LobbyManager.Instance != null)
-        { 
+        {
             LobbyManager.Instance.OnJoinedLobby += UpdateLobby_Event;
             LobbyManager.Instance.OnJoinedLobbyUpdate += UpdateLobby_Event;
             LobbyManager.Instance.OnLobbyGameModeChanged += UpdateLobby_Event;
@@ -75,27 +82,28 @@ public class LobbyUI : MonoBehaviour {
         }
     }
 
-    private void LobbyManager_OnLeftLobby(object sender, System.EventArgs e) 
+    private void LobbyManager_OnLeftLobby(object sender, System.EventArgs e)
     {
         ClearLobby();
         Hide();
     }
 
-    private void UpdateLobby_Event(object sender, LobbyManager.LobbyEventArgs e) 
+    private void UpdateLobby_Event(object sender, LobbyManager.LobbyEventArgs e)
     {
         UpdateLobby();
     }
 
-    private void UpdateLobby() 
+    private void UpdateLobby()
     {
         UpdateLobby(LobbyManager.Instance.GetJoinedLobby());
     }
 
-    private void UpdateLobby(Lobby lobby) 
+    private void UpdateLobby(Lobby lobby)
     {
         ClearLobby();
 
-        foreach (Player player in lobby.Players) 
+        int index = 0;
+        foreach (Player player in lobby.Players)
         {
             Transform playerSingleTransform = Instantiate(playerSingleTemplate, container);
             playerSingleTransform.gameObject.SetActive(true);
@@ -106,7 +114,8 @@ public class LobbyUI : MonoBehaviour {
                 player.Id != AuthenticationService.Instance.PlayerId // Don't allow kick self
             );
 
-            lobbyPlayerSingleUI.UpdatePlayer(player);
+            lobbyPlayerSingleUI.UpdatePlayer(player, index);
+            index++;
         }
 
         changeGameModeButton.gameObject.SetActive(LobbyManager.Instance.IsLobbyHost());
@@ -123,20 +132,16 @@ public class LobbyUI : MonoBehaviour {
             {
                 if (gameStarted) return;
                 StartCoroutine(StartGame());
-                Debug.Log("Server Start Game");
             }
         }
         else if (NetworkManager.Singleton.IsClient && !NetworkManager.Singleton.IsHost)
         {
             if (lobby.Players.Count == lobby.MaxPlayers)
-            {
                 LobbyManager.Instance.ToggleInGame();
-                Debug.Log("Client Start Game");
-            }
         }
     }
 
-    private IEnumerator StartGame() 
+    private IEnumerator StartGame()
     {
         gameStarted = true;
         LobbyManager.Instance.ToggleInGame();
@@ -146,23 +151,19 @@ public class LobbyUI : MonoBehaviour {
         NetworkManager.Singleton.SceneManager.LoadScene("HippoGameScene", LoadSceneMode.Single);
     }
 
-    private void ClearLobby() 
+    private void ClearLobby()
     {
-        foreach (Transform child in container) 
+        foreach (Transform child in container)
         {
             if (child == playerSingleTemplate) continue;
             Destroy(child.gameObject);
         }
     }
 
-    private void Hide() 
-    {
+    private void Hide() =>
         gameObject.SetActive(false);
-    }
 
-    private void Show() 
-    {
+    private void Show() =>
         gameObject.SetActive(true);
-    }
 
 }

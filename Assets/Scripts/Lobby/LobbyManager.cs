@@ -1,15 +1,14 @@
 using System;
 using System.Collections.Generic;
-using Unity.Services.Authentication;
 using Unity.Services.Core;
 using Unity.Services.Lobbies;
 using Unity.Services.Lobbies.Models;
 using Unity.Services.Relay.Models;
+using Unity.Services.Authentication;
 using UnityEngine;
 
 public class LobbyManager : Singleton<LobbyManager>
 {
-
     public const string KEY_PLAYER_NAME = "PlayerName";
     public const string KEY_PLAYER_CHARACTER = "Character";
     public const string KEY_GAME_MODE = "GameMode";
@@ -52,12 +51,11 @@ public class LobbyManager : Singleton<LobbyManager>
     private Lobby joinedLobby;
     private string playerName;
 
-    private bool inGame;
+    private bool gameStarted;
 
     private void Update()
     {
-
-        if (!inGame)
+        if (!gameStarted)
         {
             HandleRefreshLobbyList();
             HandleLobbyHeartbeat();
@@ -68,6 +66,7 @@ public class LobbyManager : Singleton<LobbyManager>
     public async void Authenticate(string playerName)
     {
         this.playerName = playerName;
+
         InitializationOptions initializationOptions = new InitializationOptions();
         initializationOptions.SetProfile(playerName);
 
@@ -157,16 +156,13 @@ public class LobbyManager : Singleton<LobbyManager>
 
     public void ToggleInGame()
     {
-        inGame = !inGame;
+        gameStarted = !gameStarted;
     }
 
     public async void CreateLobby(string lobbyName, int maxPlayers, bool isPrivate, GameMode gameMode)
     {
         Allocation allocation = await RelayManager.Instance.AllocateRelay();
         string relayJoinCode = await RelayManager.Instance.GetRelayJoinCode(allocation);
-
-        Debug.Log("Allocation Id : " + allocation.AllocationId);
-        Debug.Log("Relay join code : " + relayJoinCode);
 
         Player player = GetPlayer();
 
@@ -238,7 +234,7 @@ public class LobbyManager : Singleton<LobbyManager>
             OnJoinedLobby?.Invoke(this, new LobbyEventArgs { lobby = lobby });
 
             string relayJoinCode = lobby.Data[KEY_JOIN_CODE].Value;
-            Debug.Log("Relay join code : " + relayJoinCode);
+
             JoinAllocation joinAllocation = await RelayManager.Instance.JoinRelay(relayJoinCode);
 
             RelayManager.Instance.SetTransportAndStartClient(joinAllocation);
@@ -418,6 +414,17 @@ public class LobbyManager : Singleton<LobbyManager>
         {
             Debug.Log($"Update lobby game mode error: {e.Message}");
         }
+    }
+
+    public void DeleteJoinedLobby() 
+    {
+        _ = LobbyService.Instance.DeleteLobbyAsync(GetJoinedLobby().Id); 
+    }
+
+    public void HandleLobbyExit() 
+    {
+        joinedLobby = null;
+        ToggleInGame();
     }
 
     private async void HandleLobbyHeartbeat()

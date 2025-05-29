@@ -40,7 +40,7 @@ public class NetworkObjectPool : NetworkBehaviour
     private NetworkObject CreatePooledObject()
     {
         GameObject obj = Instantiate(prefab);
-        NetworkObject netObj = Instantiate(prefab).GetComponent<NetworkObject>();
+        NetworkObject netObj = obj.GetComponent<NetworkObject>();
         obj.SetActive(false);
         pool.Add(netObj);
         return netObj;

@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using Unity.Services.Authentication;
 using Unity.Services.Lobbies.Models;
-using UnityEngine;
+using Unity.Services.Core;
 using UnityEngine.UI;
+using UnityEngine;
 
 public class LobbyListUI : MonoBehaviour
 {
@@ -16,6 +18,8 @@ public class LobbyListUI : MonoBehaviour
 
     [SerializeField] private GameObject noActiveLobbyTextGO;
     [SerializeField] private GameObject creatingLobbyTextGO;
+
+    private bool creatingLobby;
 
     private void Awake()
     {
@@ -37,7 +41,20 @@ public class LobbyListUI : MonoBehaviour
         LobbyManager.Instance.OnLeftLobby += LobbyManager_OnLeftLobby;
         LobbyManager.Instance.OnKickedFromLobby += LobbyManager_OnKickedFromLobby;
 
-        Hide();
+        if (UnityServices.State == ServicesInitializationState.Initialized 
+            && AuthenticationService.Instance.IsSignedIn)
+            Show();
+        else
+            Hide();
+    }
+
+    private void OnDestroy()
+    {
+        LobbyManager.Instance.OnLobbyListChanged -= LobbyManager_OnLobbyListChanged;
+        LobbyManager.Instance.OnJoinedLobby -= LobbyManager_OnJoinedLobby;
+        LobbyManager.Instance.OnLeftLobby -= LobbyManager_OnLeftLobby;
+        LobbyManager.Instance.OnKickedFromLobby -= LobbyManager_OnKickedFromLobby;
+
     }
 
     private void LobbyManager_OnKickedFromLobby(object sender, LobbyManager.LobbyEventArgs e)
@@ -63,7 +80,7 @@ public class LobbyListUI : MonoBehaviour
     private void UpdateLobbyList(List<Lobby> lobbyList)
     {
 
-        if (lobbyList.Count == 0)
+        if (lobbyList.Count == 0 && !creatingLobby)
         {
             noActiveLobbyTextGO.SetActive(true);
             quickJoinLobbyButton.gameObject.SetActive(false);
@@ -113,19 +130,17 @@ public class LobbyListUI : MonoBehaviour
         quickJoinLobbyButton.gameObject.SetActive(show);
     }
 
-    private void Hide()
-    {
-        gameObject.SetActive(false);
-    }
-
-    private void Show()
-    {
-        gameObject.SetActive(true);
-    }
-
-    public void ShowCreatingLobbyText() 
+    public void CreatingLobbyInitiated()
     {
         noActiveLobbyTextGO.SetActive(false);
         creatingLobbyTextGO.SetActive(true);
+        creatingLobby = true;
     }
+
+    private void Hide() =>
+        gameObject.SetActive(false);
+
+    private void Show() =>
+        gameObject.SetActive(true);
+
 }

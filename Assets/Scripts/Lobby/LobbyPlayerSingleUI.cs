@@ -24,12 +24,12 @@ public class LobbyPlayerSingleUI : MonoBehaviour {
         kickPlayerButton.gameObject.SetActive(visible);
     }
 
-    public void UpdatePlayer(Player player) {
+    public void UpdatePlayer(Player player, int index) {
         this.player = player;
         playerNameText.text = player.Data[LobbyManager.KEY_PLAYER_NAME].Value;
         LobbyManager.PlayerCharacter playerCharacter = 
             System.Enum.Parse<LobbyManager.PlayerCharacter>(player.Data[LobbyManager.KEY_PLAYER_CHARACTER].Value);
-        characterImage.sprite = LobbyAssets.Instance.GetSprite(playerCharacter);
+        characterImage.sprite = LobbyAssets.Instance.GetSprite(index);
     }
 
     private void KickPlayer() {

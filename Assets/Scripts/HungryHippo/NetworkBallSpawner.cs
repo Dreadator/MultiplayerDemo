@@ -10,6 +10,7 @@ public class NetworkBallSpawner : NetworkBehaviour
     [SerializeField] List<Transform> ballSpawnPoints;
 
     [SerializeField] int startBallCount = 10;
+    [SerializeField] int numberOfAdditionalBallsPerSpawn = 10;
 
     private int currentBallCount;
 
@@ -18,6 +19,20 @@ public class NetworkBallSpawner : NetworkBehaviour
     private void Awake()
     {
         currentBallCount = startBallCount;      
+    }
+
+    private void Start()
+    {
+        if(HungryHippoGameManager.Instance)
+            HungryHippoGameManager.Instance.OnGameRestarted += ResetBallCount;
+    }
+
+    public override void OnDestroy()
+    {
+        if (HungryHippoGameManager.Instance)
+            HungryHippoGameManager.Instance.OnGameRestarted -= ResetBallCount;
+
+        base.OnDestroy();
     }
 
     public void SpawnBalls() 
@@ -32,15 +47,9 @@ public class NetworkBallSpawner : NetworkBehaviour
             ballNO.Spawn();
         }
         OnAllBallsSpawned?.Invoke(currentBallCount);
-        currentBallCount += 10;
+        currentBallCount += numberOfAdditionalBallsPerSpawn;
     }
 
-    private void Update()
-    {
-        if (Input.GetKeyDown(KeyCode.Backspace)) 
-        {
-            if (IsServer)
-                SpawnBalls();
-        }
-    }
+    private void ResetBallCount() =>
+        currentBallCount = startBallCount;
 }

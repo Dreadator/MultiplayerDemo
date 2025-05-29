@@ -1,17 +1,29 @@
 using System.Collections;
 using UnityEngine;
 using TMPro;
+using Unity.Netcode;
 
 public class PlayerScoreUIManager : MonoBehaviour
 {
     private const string SCORE_STRING = "Score: ";
 
     [SerializeField] private TextMeshProUGUI ScoreTMP;
+    [SerializeField] private TextMeshProUGUI playerIDTMP;
+    [SerializeField] private TextMeshProUGUI roundTMP;
 
     private HippoController hippoController;
 
     private IEnumerator Start()
     {
+        if(PlayerSpawner.Instance)
+            PlayerSpawner.Instance.OnPlayerSpawned += SetPlayerIdentifier;
+
+        if (HungryHippoGameManager.Instance)
+        {
+            HungryHippoGameManager.Instance.OnRoundIncreased += SetRoundIndexText;
+            HungryHippoGameManager.Instance.OnGameRestarted += ResetScore;
+        }
+
         yield return new WaitForSeconds(1f);
         FindPlayerAndSubscribe();
     }
@@ -19,7 +31,19 @@ public class PlayerScoreUIManager : MonoBehaviour
     private void OnDestroy()
     {
         if (hippoController)
+        {
             hippoController.OnBallCollected -= UpdateScoreText;
+            hippoController.OnBallCountReset -= UpdateScoreText;
+        }
+
+        if(PlayerSpawner.Instance)
+            PlayerSpawner.Instance.OnPlayerSpawned -= SetPlayerIdentifier;
+
+        if (HungryHippoGameManager.Instance)
+        {
+            HungryHippoGameManager.Instance.OnRoundIncreased -= SetRoundIndexText;
+            HungryHippoGameManager.Instance.OnGameRestarted -= ResetScore;
+        }
     }
 
     private void FindPlayerAndSubscribe()
@@ -28,9 +52,22 @@ public class PlayerScoreUIManager : MonoBehaviour
             .GetComponent<HippoController>();
 
         hippoController.OnBallCollected += UpdateScoreText;
+        hippoController.OnBallCountReset += UpdateScoreText;
     }
 
+
+    private void ResetScore() =>
+        UpdateScoreText(0);
+
+        
     private void UpdateScoreText(int score) =>
         ScoreTMP.text = SCORE_STRING + score.ToString();
+
+    
+    private void SetPlayerIdentifier() =>
+        playerIDTMP.text = "Player " + (NetworkManager.Singleton.LocalClientId + 1);
+
+    private void SetRoundIndexText(int roundIndex) =>
+        roundTMP.text = $"Round :{roundIndex}";
 
 }

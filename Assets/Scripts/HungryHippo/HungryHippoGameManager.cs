@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -9,15 +10,22 @@ public class HungryHippoGameManager : NetworkBehaviour
     public static HungryHippoGameManager Instance { get; private set; }
 
     public event Action OnGameStarted;
-    public event Action OnGameEnded;
-    public event Action OnRoundEnded;
     public event Action OnRemainingBallsChanged;
+    public event Action OnRoundEnded;
+    public event Action OnGameRestarted;
+    public event Action<ulong> OnRoundWinnerAnnounced;
+    public event Action<int> OnRoundIncreased;
+    public event Action<Dictionary<ulong, int>, Dictionary<ulong, int>> OnGameEnded;
 
     [SerializeField] NetworkBallSpawner ballSpanwer;
+    [SerializeField] int maxRounds = 5;
 
+    private NetworkVariable<int> roundIndex = new NetworkVariable<int>(1);
     private NetworkVariable<int> remainingBalls = new NetworkVariable<int>();
 
-    private Dictionary<ulong, int> playerProgress = new();
+    private Dictionary<ulong, int> roundProgress = new();
+    private Dictionary<ulong, int> roundWinProgress = new();
+    private Dictionary<ulong, int> clientsTotalBallsCollected = new();
 
     private bool gameStarted;
 
@@ -27,6 +35,10 @@ public class HungryHippoGameManager : NetworkBehaviour
             Instance = this;
         else if (Instance != this)
             Destroy(gameObject);
+
+        roundProgress = new Dictionary<ulong, int>();
+        roundWinProgress = new Dictionary<ulong, int>();
+        clientsTotalBallsCollected = new Dictionary<ulong, int>();
     }
 
     private void Start()
@@ -40,96 +52,181 @@ public class HungryHippoGameManager : NetworkBehaviour
         base.OnNetworkSpawn();
 
         if (IsServer)
-        {
             NetworkManager.Singleton.OnClientConnectedCallback += NetworkManager_OnClientConnectCallback;
-        }
 
         remainingBalls.OnValueChanged += (int oldScore, int newScore) =>
         {
             OnRemainingBallsChanged?.Invoke();
         };
+
+        roundIndex.OnValueChanged += (int oldScore, int newScore) =>
+        {
+            OnRoundIncreased?.Invoke(roundIndex.Value);
+        };
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        if (IsServer)
+            NetworkManager.Singleton.OnClientConnectedCallback -= NetworkManager_OnClientConnectCallback;
+
+        base.OnNetworkDespawn();
     }
 
     private void NetworkManager_OnClientConnectCallback(ulong obj)
     {
         if (!IsServer) return;
 
-        if (NetworkManager.Singleton.ConnectedClientsList.Count == 
+        if (NetworkManager.Singleton.ConnectedClientsList.Count ==
             LobbyManager.Instance.GetJoinedLobbyPlayerCount())
         {
             TriggerOnGameStartedRPC();
         }
     }
 
-    private void BallSpawner_OnAllBallsSpawned(int ballCount) 
+    private void BallSpawner_OnAllBallsSpawned(int ballCount)
     {
         if (!IsServer) return;
 
         remainingBalls.Value = ballCount;
-        Debug.Log($"Remaining balls = {remainingBalls.Value}");
     }
 
     [Rpc(SendTo.ClientsAndHost)]
-    private void TriggerOnGameStartedRPC() 
+    private void TriggerOnGameStartedRPC()
     {
-        OnGameStarted?.Invoke();
         Debug.Log("GameManager - Game Started");
+        OnGameStarted?.Invoke();
         StartCoroutine(DelayedStartRound());
     }
 
-    private IEnumerator DelayedStartRound() 
+    private IEnumerator DelayedStartRound()
     {
         Debug.Log("Starting Round in 3s");
         yield return new WaitForSeconds(3f);
-        SpawnBalls(); 
+        SpawnBalls();
     }
 
     [Rpc(SendTo.ClientsAndHost)]
     private void TriggerOnRoundEndedRPC()
     {
-        OnRoundEnded?.Invoke();
         Debug.Log("GameManager - Round Ended");
-        StartCoroutine (DelayedStartRound());
+        IncreaseRoundIndex();
+        OnRoundEnded?.Invoke();
+
+        if (roundIndex.Value > maxRounds) return;
+
+        StartCoroutine(DelayedStartRound());
     }
 
     [Rpc(SendTo.ClientsAndHost)]
-    private void TriggerOnGameEndedRPC() 
+    private void TriggerOnGameEndedRPC()
     {
-        OnGameEnded?.Invoke();
         Debug.Log("GameManager - Game Ended");
+        OnGameEnded?.Invoke(roundWinProgress, clientsTotalBallsCollected);
+    }
+
+    [Rpc(SendTo.Server, Delivery = RpcDelivery.Reliable)]
+    public void PlayerCollectedBallServerRPC(ulong clientId)
+    {
+        UpdatePlayersProgressClientRPC(clientId);
+
+        remainingBalls.Value--;
+
+        if (remainingBalls.Value == 0)
+        {
+            if (roundIndex.Value >= maxRounds)
+            {
+                CheckRoundWinner();
+                StartCoroutine(DelayedRoundEnd());
+                return;
+            }
+
+            TriggerOnRoundEndedRPC();
+            CheckRoundWinner();
+        }
+    }
+
+    private IEnumerator DelayedRoundEnd()
+    {
+        yield return new WaitForSeconds(3f);
+        TriggerOnGameEndedRPC();
+    }
+
+    [Rpc(SendTo.ClientsAndHost, Delivery = RpcDelivery.Reliable)]
+    private void UpdatePlayersProgressClientRPC(ulong clientId)
+    {
+        if (!roundProgress.ContainsKey(clientId))
+            roundProgress[clientId] = 1;
+        else
+            roundProgress[clientId]++;
+
+        if (!clientsTotalBallsCollected.ContainsKey(clientId))
+            clientsTotalBallsCollected[clientId] = 1;
+        else
+            clientsTotalBallsCollected[clientId]++;
+    }
+
+    private void IncreaseRoundIndex()
+    {
+        if (!IsServer) return;
+
+        roundIndex.Value++;
+        if (roundIndex.Value > maxRounds)
+            roundIndex.Value = maxRounds;
+    }
+
+    private void SpawnBalls()
+    {
+        if (!IsServer) return;
+        ballSpanwer.SpawnBalls();
+    }
+
+    private void CheckRoundWinner()
+    {
+        int highestScore = roundProgress.Values.Max();
+        var entryWithHighestScore = roundProgress.First(kvp => kvp.Value == highestScore);
+        ulong clientWithHighestScore = entryWithHighestScore.Key;
+
+        UpdateRoundProgressClientRPC(clientWithHighestScore);
+
+        roundProgress.Clear();
+
+        TriggerAnounceRoundWinnerClientRPC(clientWithHighestScore);
+    }
+
+    [Rpc(SendTo.ClientsAndHost)]
+    private void UpdateRoundProgressClientRPC(ulong clientID)
+    {
+        if (!roundWinProgress.ContainsKey(clientID))
+            roundWinProgress[clientID] = 1;
+        else
+            roundWinProgress[clientID]++;
+    }
+
+    [Rpc(SendTo.ClientsAndHost)]
+    private void TriggerAnounceRoundWinnerClientRPC(ulong clientID)
+    {
+        OnRoundWinnerAnnounced?.Invoke(clientID);
     }
 
     [Rpc(SendTo.Server)]
-    public void PlayerCollectedBallRPC() 
+    public void RestartGameServerRPC()
     {
-        ulong client = 1;
-        if (!playerProgress.ContainsKey(client))
-            playerProgress[client] = 1;
-        else 
-        {
-            playerProgress[client]++;
+        if (!IsServer) return;
 
-            Debug.Log($"Player client : {client} has progress of {playerProgress[client]}");
-        }
+        roundIndex.Value = 1;
 
-        remainingBalls.Value--;
-        Debug.Log($"player collected,Remaining balls = {remainingBalls.Value}");
-        if (remainingBalls.Value == 0)
-            TriggerOnRoundEndedRPC();
-    }
-
-    private void SpawnBalls() 
-    {
-        if(IsServer)
-            ballSpanwer.SpawnBalls();
-    }
-
-
-    #region Debug
-    [ContextMenu("Start Game Local")]
-    private void StartGameLocal()
-    {
+        RestartGameClientRPC();
         TriggerOnGameStartedRPC();
     }
-    #endregion
+
+    [Rpc(SendTo.ClientsAndHost)]
+    private void RestartGameClientRPC()
+    {
+        roundProgress.Clear();
+        roundWinProgress.Clear();
+        clientsTotalBallsCollected.Clear();
+
+        OnGameRestarted?.Invoke();
+    }
 }

@@ -1,8 +1,8 @@
-using DG.Tweening;
 using System.Collections;
-using UnityEngine;
 using System;
+using UnityEngine;
 using Unity.Netcode;
+using DG.Tweening;
 
 public class HippoController : NetworkBehaviour
 {
@@ -22,19 +22,31 @@ public class HippoController : NetworkBehaviour
     [SerializeField] float lungeForwardDistance = 5f;
 
     private Coroutine openMouth_CRT;
+    private Coroutine powerUp_CRT;
+
     private Tween lungeTween;
+    private Tween lungeScaleTween;
 
     private bool mouthIsOpen;
 
     public event Action<int> OnBallCollected;
+    public event Action<int> OnBallCountReset;
 
     private int ballsCollected;
 
     private Vector3 startPos;
+    private Vector3 startScale;
 
     private void Start()
     {
         startPos = transform.localPosition;
+        startScale = transform.localScale;
+
+        if (HungryHippoGameManager.Instance)
+        {
+            HungryHippoGameManager.Instance.OnRoundEnded += ResetCollectedBallCount;
+            HungryHippoGameManager.Instance.OnGameRestarted += ResetCollectedBallCount;
+        }
     }
 
     public override void OnNetworkSpawn()
@@ -50,9 +62,7 @@ public class HippoController : NetworkBehaviour
         if (!IsOwner) return;
 
         if (Input.GetKeyDown(KeyCode.Space)) 
-        {
             StartBiteServerRPC();
-        }
     }
 
     [Rpc(SendTo.Server)]
@@ -67,6 +77,7 @@ public class HippoController : NetworkBehaviour
         if (openMouth_CRT != null) 
         {
             lungeTween.Kill();
+            lungeScaleTween.Kill();
             StopCoroutine(openMouth_CRT);
             openMouth_CRT = null;
         }
@@ -76,9 +87,11 @@ public class HippoController : NetworkBehaviour
     private IEnumerator OpenMouth() 
     {
         transform.localPosition = startPos;
+        transform.localScale = startScale;
         mouthIsOpen = true;
         SpriteRenderer.sprite = openMouthSprite;
-        lungeTween = transform.DOPunchPosition(transform.up * lungeForwardDistance, animationDuration, 1); 
+        lungeTween = transform.DOPunchPosition(transform.up * lungeForwardDistance, animationDuration, 1).SetEase(Ease.OutElastic);
+        lungeScaleTween = transform.DOPunchScale(transform.localScale * 0.1f, animationDuration, 1);
         yield return new WaitForSeconds(animationDuration * 0.5f);
         CloseMouth();
         yield return new WaitForSeconds(animationDuration * 0.5f);
@@ -93,17 +106,27 @@ public class HippoController : NetworkBehaviour
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
+        if (!IsServer) return;
+
         if (mouthIsOpen) 
         {
             if (collision.transform.CompareTag(BALL_TAG))
             {
-                if (!IsServer) return;
+                TriggerMouthFlagShutRPC();
+
                 NetworkObject ballNO = collision.gameObject.GetComponent<NetworkObject>();
                 ballNO.Despawn();
-                HungryHippoGameManager.Instance.PlayerCollectedBallRPC();
+
                 TriggerBallCollectedClientRPC();
+                HungryHippoGameManager.Instance.PlayerCollectedBallServerRPC(OwnerClientId);
             }
         }
+    }
+
+    [Rpc(SendTo.ClientsAndHost)]
+    private void TriggerMouthFlagShutRPC() 
+    {
+        mouthIsOpen = false;
     }
 
     [Rpc(SendTo.ClientsAndHost)]
@@ -112,8 +135,14 @@ public class HippoController : NetworkBehaviour
         ballsCollected++;
         OnBallCollected?.Invoke(ballsCollected);
         PlayMunchSFX();
-        Debug.Log("Collecting Ball : " + ballsCollected.ToString());
     }
+
+    private void ResetCollectedBallCount()
+    {
+        ballsCollected = 0;
+        OnBallCountReset?.Invoke(ballsCollected);
+    }
+
 
     private void PlayMunchSFX() 
     {
@@ -126,5 +155,26 @@ public class HippoController : NetworkBehaviour
     {
         audioSource.clip = mouthIsOpen ? openMouthSFX : closeMouthSFX;
         audioSource.Play();
+    }
+
+    [Rpc(SendTo.ClientsAndHost)]
+    private void TriggerDoubleReachPowerupRPC()
+    {
+        powerUp_CRT = StartCoroutine(IncreaseLungeReach());
+    }
+
+    private IEnumerator IncreaseLungeReach(float multiplier = 2f) 
+    {
+        float startLungeReach = lungeForwardDistance;
+        lungeForwardDistance *= multiplier;
+        yield return new WaitForSeconds(8f);
+        lungeForwardDistance = startLungeReach;
+        powerUp_CRT = null;
+    }
+
+    [ContextMenu("Test double lunge")]
+    private void LungeTest() 
+    {
+        powerUp_CRT = StartCoroutine(IncreaseLungeReach());
     }
 }

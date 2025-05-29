@@ -2,20 +2,20 @@ using UnityEngine;
 
 public class LobbyAssets : Singleton<LobbyAssets>
 {
-    [SerializeField] private Sprite marineSprite;
-    [SerializeField] private Sprite ninjaSprite;
-    [SerializeField] private Sprite zombieSprite;
+    [SerializeField] private Sprite snakeSprite;
+    [SerializeField] private Sprite hippoSprite;
+    [SerializeField] private Sprite crocSprite;
     [SerializeField] private Sprite RhinoSprite;
 
-    public Sprite GetSprite(LobbyManager.PlayerCharacter playerCharacter)
+    public Sprite GetSprite(int index)
     {
-        switch (playerCharacter)
+        switch (index)
         {
             default:
-            case LobbyManager.PlayerCharacter.Snake: return marineSprite;
-            case LobbyManager.PlayerCharacter.Hippo: return ninjaSprite;
-            case LobbyManager.PlayerCharacter.Crocodile: return zombieSprite;
-            case LobbyManager.PlayerCharacter.Rhino: return zombieSprite;
+            case 0: return snakeSprite;
+            case 1: return hippoSprite;
+            case 2: return crocSprite;
+            case 3: return crocSprite;
         }
     }
 }
