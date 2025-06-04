@@ -5,8 +5,6 @@ using Unity.Netcode;
 
 public class NetworkBallSpawner : NetworkBehaviour
 {
-    [SerializeField] GameObject ballPrefab;
-
     [SerializeField] List<Transform> ballSpawnPoints;
 
     [SerializeField] int startBallCount = 10;

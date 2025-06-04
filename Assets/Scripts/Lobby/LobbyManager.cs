@@ -154,11 +154,6 @@ public class LobbyManager : Singleton<LobbyManager>
         }
     }
 
-    public void ToggleInGame()
-    {
-        gameStarted = !gameStarted;
-    }
-
     public async void CreateLobby(string lobbyName, int maxPlayers, bool isPrivate, GameMode gameMode)
     {
         Allocation allocation = await RelayManager.Instance.AllocateRelay();
@@ -416,9 +411,21 @@ public class LobbyManager : Singleton<LobbyManager>
         }
     }
 
+    public void ToggleInGame()
+    {
+        gameStarted = !gameStarted;
+    }
+
     public void DeleteJoinedLobby() 
     {
-        _ = LobbyService.Instance.DeleteLobbyAsync(GetJoinedLobby().Id); 
+        try
+        {
+            _ = LobbyService.Instance.DeleteLobbyAsync(GetJoinedLobby().Id);
+        }
+        catch (LobbyServiceException e)
+        { 
+            Debug.Log($"Delete lobby error: {e.Message}");
+        }
     }
 
     public void HandleLobbyExit() 
